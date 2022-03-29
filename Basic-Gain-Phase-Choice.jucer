@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <JUCERPROJECT id="fLnY15" name="Basic-Gain-Phase-Choice" projectType="audioplug"
-              useAppConfig="0" addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1">
+              useAppConfig="0" addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1"
+              cppLanguageStandard="17">
   <MAINGROUP id="mGIyYX" name="Basic-Gain-Phase-Choice">
     <GROUP id="{AF7070BB-B1D1-C937-4C04-813572ED4E3E}" name="Source">
       <FILE id="wG6hYU" name="PluginProcessor.cpp" compile="1" resource="0"
