@@ -3,6 +3,10 @@
 
     This file contains the basic framework code for a JUCE plugin processor.
 
+ From Dr Buisin tutorial:
+ https://www.youtube.com/watch?v=iFBtwj23-go&t=5084s&ab_channel=DrBruisin
+ 
+ 
   ==============================================================================
 */
 
@@ -19,13 +23,57 @@ BasicGainPhaseChoiceAudioProcessor::BasicGainPhaseChoiceAudioProcessor()
                       #endif
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
-                       )
+                       ), treeState(*this, nullptr, "PARAMETERS", createParameterLayout())
 #endif
 {
+    treeState.addParameterListener("gain", this);
+    treeState.addParameterListener("phase", this);
+    treeState.addParameterListener("choice", this);
 }
 
 BasicGainPhaseChoiceAudioProcessor::~BasicGainPhaseChoiceAudioProcessor()
 {
+    treeState.removeParameterListener("gain", this);
+    treeState.removeParameterListener("phase", this);
+    treeState.removeParameterListener("choice", this);
+}
+
+juce::AudioProcessorValueTreeState::ParameterLayout BasicGainPhaseChoiceAudioProcessor::createParameterLayout()
+{
+    std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
+    
+    juce::StringArray choices = {"Compressor", "EQ", "Reverb"};
+    
+    auto pGain = std::make_unique<juce::AudioParameterFloat>("gain", "Gain", -24.0, 24.0, 0.0);
+    auto pPhase = std::make_unique<juce::AudioParameterBool>("phase", "Phase", false);
+    auto pChoice = std::make_unique<juce::AudioParameterChoice>("choice", "Choice", choices, 0);
+    
+    params.push_back(std::move(pGain));
+    params.push_back(std::move(pPhase));
+    params.push_back(std::move(pChoice));
+    
+    return { params.begin(), params.end() };
+}
+
+void BasicGainPhaseChoiceAudioProcessor::parameterChanged(const juce::String &parameterID, float newValue)
+{
+    if(parameterID == "gain")
+    {
+        rawGain = juce::Decibels::decibelsToGain(newValue);
+        DBG("Gain is: " << newValue);
+    }
+    
+    if(parameterID == "phase")
+    {
+        phase = newValue;
+        DBG("Phase is: " << newValue);
+    }
+    
+    if(parameterID == "choice")
+    {
+        choice = newValue;
+        DBG("Choice is: " << newValue);
+    }
 }
 
 //==============================================================================
@@ -93,8 +141,8 @@ void BasicGainPhaseChoiceAudioProcessor::changeProgramName (int index, const juc
 //==============================================================================
 void BasicGainPhaseChoiceAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    // Use this method as the place to do any pre-playback
-    // initialisation that you need..
+    phase = *treeState.getRawParameterValue("phase");
+    rawGain = juce::Decibels::decibelsToGain(static_cast<float>(*treeState.getRawParameterValue("gain")));
 }
 
 void BasicGainPhaseChoiceAudioProcessor::releaseResources()
@@ -148,7 +196,14 @@ void BasicGainPhaseChoiceAudioProcessor::processBlock (juce::AudioBuffer<float>&
         
         for(int sample = 0; sample < block.getNumSamples(); ++sample)
         {
-            channelData[sample] *= 2.0;
+            if (phase)
+            {
+                channelData[sample] *= rawGain * -1.0;
+            }
+            else
+            {
+                channelData[sample] *= rawGain;
+            }
         }
     }
 }
@@ -161,21 +216,29 @@ bool BasicGainPhaseChoiceAudioProcessor::hasEditor() const
 
 juce::AudioProcessorEditor* BasicGainPhaseChoiceAudioProcessor::createEditor()
 {
-    return new BasicGainPhaseChoiceAudioProcessorEditor (*this);
+//    return new BasicGainPhaseChoiceAudioProcessorEditor (*this);
+    return new juce::GenericAudioProcessorEditor (*this);
 }
 
 //==============================================================================
 void BasicGainPhaseChoiceAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
+    // Save params
+    juce::MemoryOutputStream stream(destData, false);
+    treeState.state.writeToStream(stream);
 }
 
 void BasicGainPhaseChoiceAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
+    // Recall params
+    auto tree = juce::ValueTree::readFromData(data, size_t(sizeInBytes));
+    
+    if(tree.isValid())
+    {
+        treeState.state = tree;
+        phase = *treeState.getRawParameterValue("phase");
+        rawGain = juce::Decibels::decibelsToGain(static_cast<float>(*treeState.getRawParameterValue("gain")));
+    }
 }
 
 //==============================================================================
